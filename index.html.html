@@ -1,166 +1,101 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Al Callao Digital</title>
-<style>
-  body { font-family: Arial, sans-serif; margin: 20px; text-align: center; }
-  #word { font-size: 2em; margin-bottom: 10px; }
-  #forbidden { color: red; font-weight: bold; margin-bottom: 20px; }
-  #timer { font-size: 1.5em; margin-bottom: 20px; }
-  button { font-size: 1.2em; margin: 10px; padding: 10px 20px; cursor: pointer; }
-  button:disabled { background: #ccc; cursor: not-allowed; }
-  #overlay {
-    position: fixed; top:0; left:0; width:100%; height:100%;
-    background: rgba(0,0,0,0.7);
-    color: white; font-size: 2em;
-    display: flex; justify-content: center; align-items: center;
-    flex-direction: column;
-    display: none;
-    z-index: 10;
-  }
-</style>
+    <meta charset="UTF-8">
+    <title>Al Callao - Theocratic Game</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+        #mainWord { font-size: 2em; margin: 20px; }
+        #forbiddenWords { margin: 20px; }
+        #timer { font-size: 1.5em; color: red; }
+        button { margin: 10px; padding: 10px 20px; font-size: 1em; }
+    </style>
 </head>
 <body>
-
-<div id="game">
-  <div id="word">Cargando...</div>
-  <div id="forbidden"></div>
-  <div id="timer">60</div>
-  <button id="doneBtn">Completado</button>
-  <button id="failBtn">Perdimos</button>
-</div>
-
-<div id="overlay">
-  <div id="overlayText"></div>
-  <button id="nextBtn">Siguiente Carta</button>
-</div>
+    <h1>Al Callao - Theocratic Game</h1>
+    <div id="mainWord">Loading...</div>
+    <div id="forbiddenWords"></div>
+    <div id="timer"></div>
+    <button onclick="markCompleted()">Completed</button>
+    <button onclick="markLost()">Lost</button>
+    <div id="nextCardDiv" style="display:none;">
+        <h2>Get ready for the next card!</h2>
+        <button onclick="nextCard()">Next Card</button>
+    </div>
 
 <script>
-// ID de tu Google Sheet
-const SHEET_ID = "1ufbUg0ag818GHEwaj_UMYh7fgXSf2GRiTIJJ0sKFhmI";
+const sheetID = "1ufbUg0ag818GHEwaj_UMYh7fgXSf2GRiTIJJ0sKFhmI";
+const sheetName = "index";  // Replace "index" with your sheet tab name if it's different
+const sheetURL = `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?tqx=out:json&sheet=${sheetName}`;
+let cards = [], currentCard = 0, countdownInterval;
 
-const sheetURL = `https://spreadsheets.google.com/feeds/list/${SHEET_ID}/od6/public/values?alt=json`;
-
-let cards = [];
-let currentCardIndex = 0;
-let timerInterval;
-let timeLeft = 60;
-
-const wordEl = document.getElementById("word");
-const forbiddenEl = document.getElementById("forbidden");
-const timerEl = document.getElementById("timer");
-const doneBtn = document.getElementById("doneBtn");
-const failBtn = document.getElementById("failBtn");
-const overlay = document.getElementById("overlay");
-const overlayText = document.getElementById("overlayText");
-const nextBtn = document.getElementById("nextBtn");
+fetch(sheetURL)
+  .then(res => res.text())
+  .then(data => {
+    const json = JSON.parse(data.substr(47).slice(0, -2));
+    json.table.rows.forEach(row => {
+      const main = row.c[0]?.v;
+      const forbidden = row.c.slice(1).map(c => c?.v).filter(v => v);
+      if (main) cards.push({ main, forbidden });
+    });
+    shuffle(cards);
+    nextCard();
+  })
+  .catch(err => {
+    document.getElementById("mainWord").textContent = "Error loading data. Please check your sheet or permissions.";
+    console.error(err);
+  });
 
 function shuffle(array) {
-  for (let i = array.length -1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i+1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-  return array;
-}
-
-function startTimer() {
-  timeLeft = 60;
-  timerEl.textContent = timeLeft;
-  timerInterval = setInterval(() => {
-    timeLeft--;
-    timerEl.textContent = timeLeft;
-    if (timeLeft <= 0) {
-      clearInterval(timerInterval);
-      showOverlay("¡Se acabó el tiempo!");
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
     }
-  }, 1000);
 }
 
-function showCard() {
-  if (cards.length === 0) {
-    wordEl.textContent = "No hay cartas para mostrar.";
-    forbiddenEl.textContent = "";
-    timerEl.textContent = "";
-    doneBtn.disabled = true;
-    failBtn.disabled = true;
-    return;
-  }
-  if (currentCardIndex >= cards.length) {
-    showOverlay("¡Juego terminado! ¿Quieres reiniciar?");
-    nextBtn.textContent = "Reiniciar Juego";
-    doneBtn.disabled = true;
-    failBtn.disabled = true;
-    return;
-  }
-  const card = cards[currentCardIndex];
-  wordEl.textContent = card.word;
-  forbiddenEl.textContent = "Prohibidas: " + card.forbidden;
-  doneBtn.disabled = false;
-  failBtn.disabled = false;
-  nextBtn.textContent = "Siguiente Carta";
-  startTimer();
+function nextCard() {
+    document.getElementById("nextCardDiv").style.display = "none";
+    if (currentCard >= cards.length) {
+        alert("Game over! Restarting.");
+        shuffle(cards);
+        currentCard = 0;
+    }
+    const card = cards[currentCard++];
+    document.getElementById("mainWord").textContent = card.main;
+    document.getElementById("forbiddenWords").textContent = "Forbidden: " + card.forbidden.join(", ");
+    startCountdown();
 }
 
-function showOverlay(text) {
-  clearInterval(timerInterval);
-  overlayText.textContent = text;
-  overlay.style.display = "flex";
+function startCountdown() {
+    let time = 60;
+    document.getElementById("timer").textContent = `Time: ${time}s`;
+    clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+        time--;
+        document.getElementById("timer").textContent = `Time: ${time}s`;
+        if (time <= 0) {
+            clearInterval(countdownInterval);
+            showNextCardScreen("Time's up!");
+        }
+    }, 1000);
 }
 
-doneBtn.addEventListener("click", () => {
-  clearInterval(timerInterval);
-  showOverlay("¡Correcto! ¿Siguiente carta?");
-  doneBtn.disabled = true;
-  failBtn.disabled = true;
-});
-
-failBtn.addEventListener("click", () => {
-  clearInterval(timerInterval);
-  showOverlay("¡Perdimos! ¿Siguiente carta?");
-  doneBtn.disabled = true;
-  failBtn.disabled = true;
-});
-
-nextBtn.addEventListener("click", () => {
-  overlay.style.display = "none";
-  if (currentCardIndex >= cards.length) {
-    // Reiniciar juego
-    currentCardIndex = 0;
-    cards = shuffle(cards);
-  } else {
-    currentCardIndex++;
-  }
-  showCard();
-});
-
-// Fetch Google Sheet data y cargar cartas
-async function loadCards() {
-  try {
-    const response = await fetch(sheetURL);
-    const data = await response.json();
-    const entries = data.feed.entry;
-    cards = entries.map(entry => {
-      const personaje = entry['gsx$personaje'] ? entry['gsx$personaje']['$t'] : "";
-      const p1 = entry['gsx$palabraprohibida1'] ? entry['gsx$palabraprohibida1']['$t'] : "";
-      const p2 = entry['gsx$palabraprohibida2'] ? entry['gsx$palabraprohibida2']['$t'] : "";
-      const p3 = entry['gsx$palabraprohibida3'] ? entry['gsx$palabraprohibida3']['$t'] : "";
-      const p4 = entry['gsx$palabraprohibida4'] ? entry['gsx$palabraprohibida4']['$t'] : "";
-      const p5 = entry['gsx$palabraprohibida5'] ? entry['gsx$palabraprohibida5']['$t'] : "";
-      const prohibidas = [p1,p2,p3,p4,p5].filter(w => w).join(", ");
-      return { word: personaje, forbidden: prohibidas };
-    }).filter(c => c.word);
-    cards = shuffle(cards);
-    showCard();
-  } catch (error) {
-    wordEl.textContent = "Error cargando cartas.";
-    console.error(error);
-  }
+function markCompleted() {
+    clearInterval(countdownInterval);
+    showNextCardScreen("Well done!");
 }
 
-loadCards();
+function markLost() {
+    clearInterval(countdownInterval);
+    showNextCardScreen("You lost!");
+}
+
+function showNextCardScreen(message) {
+    document.getElementById("mainWord").textContent = message;
+    document.getElementById("forbiddenWords").textContent = "";
+    document.getElementById("timer").textContent = "";
+    document.getElementById("nextCardDiv").style.display = "block";
+}
 </script>
-
 </body>
 </html>
