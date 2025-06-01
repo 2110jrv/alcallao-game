@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Al Callao Digital</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; text-align: center; }
+  #word { font-size: 2em; margin-bottom: 10px; }
+  #forbidden { color: red; font-weight: bold; margin-bottom: 20px; }
+  #timer { font-size: 1.5em; margin-bottom: 20px; }
+  button { font-size: 1.2em; margin: 10px; padding: 10px 20px; cursor: pointer; }
+  button:disabled { background: #ccc; cursor: not-allowed; }
+  #overlay {
+    position: fixed; top:0; left:0; width:100%; height:100%;
+    background: rgba(0,0,0,0.7);
+    color: white; font-size: 2em;
+    display: flex; justify-content: center; align-items: center;
+    flex-direction: column;
+    display: none;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<div id="game">
+  <div id="word">Cargando...</div>
+  <div id="forbidden"></div>
+  <div id="timer">60</div>
+  <button id="doneBtn">Completado</button>
+  <button id="failBtn">Perdimos</button>
+</div>
+
+<div id="overlay">
+  <div id="overlayText"></div>
+  <button id="nextBtn">Siguiente Carta</button>
+</div>
+
+<script>
+// ID de tu Google Sheet
+const SHEET_ID = "1ufbUg0ag818GHEwaj_UMYh7fgXSf2GRiTIJJ0sKFhmI";
+
+const sheetURL = `https://spreadsheets.google.com/feeds/list/${SHEET_ID}/od6/public/values?alt=json`;
+
+let cards = [];
+let currentCardIndex = 0;
+let timerInterval;
+let timeLeft = 60;
+
+const wordEl = document.getElementById("word");
+const forbiddenEl = document.getElementById("forbidden");
+const timerEl = document.getElementById("timer");
+const doneBtn = document.getElementById("doneBtn");
+const failBtn = document.getElementById("failBtn");
+const overlay = document.getElementById("overlay");
+const overlayText = document.getElementById("overlayText");
+const nextBtn = document.getElementById("nextBtn");
+
+function shuffle(array) {
+  for (let i = array.length -1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function startTimer() {
+  timeLeft = 60;
+  timerEl.textContent = timeLeft;
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    timerEl.textContent = timeLeft;
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      showOverlay("¡Se acabó el tiempo!");
+    }
+  }, 1000);
+}
+
+function showCard() {
+  if (cards.length === 0) {
+    wordEl.textContent = "No hay cartas para mostrar.";
+    forbiddenEl.textContent = "";
+    timerEl.textContent = "";
+    doneBtn.disabled = true;
+    failBtn.disabled = true;
+    return;
+  }
+  if (currentCardIndex >= cards.length) {
+    showOverlay("¡Juego terminado! ¿Quieres reiniciar?");
+    nextBtn.textContent = "Reiniciar Juego";
+    doneBtn.disabled = true;
+    failBtn.disabled = true;
+    return;
+  }
+  const card = cards[currentCardIndex];
+  wordEl.textContent = card.word;
+  forbiddenEl.textContent = "Prohibidas: " + card.forbidden;
+  doneBtn.disabled = false;
+  failBtn.disabled = false;
+  nextBtn.textContent = "Siguiente Carta";
+  startTimer();
+}
+
+function showOverlay(text) {
+  clearInterval(timerInterval);
+  overlayText.textContent = text;
+  overlay.style.display = "flex";
+}
+
+doneBtn.addEventListener("click", () => {
+  clearInterval(timerInterval);
+  showOverlay("¡Correcto! ¿Siguiente carta?");
+  doneBtn.disabled = true;
+  failBtn.disabled = true;
+});
+
+failBtn.addEventListener("click", () => {
+  clearInterval(timerInterval);
+  showOverlay("¡Perdimos! ¿Siguiente carta?");
+  doneBtn.disabled = true;
+  failBtn.disabled = true;
+});
+
+nextBtn.addEventListener("click", () => {
+  overlay.style.display = "none";
+  if (currentCardIndex >= cards.length) {
+    // Reiniciar juego
+    currentCardIndex = 0;
+    cards = shuffle(cards);
+  } else {
+    currentCardIndex++;
+  }
+  showCard();
+});
+
+// Fetch Google Sheet data y cargar cartas
+async function loadCards() {
+  try {
+    const response = await fetch(sheetURL);
+    const data = await response.json();
+    const entries = data.feed.entry;
+    cards = entries.map(entry => {
+      const personaje = entry['gsx$personaje'] ? entry['gsx$personaje']['$t'] : "";
+      const p1 = entry['gsx$palabraprohibida1'] ? entry['gsx$palabraprohibida1']['$t'] : "";
+      const p2 = entry['gsx$palabraprohibida2'] ? entry['gsx$palabraprohibida2']['$t'] : "";
+      const p3 = entry['gsx$palabraprohibida3'] ? entry['gsx$palabraprohibida3']['$t'] : "";
+      const p4 = entry['gsx$palabraprohibida4'] ? entry['gsx$palabraprohibida4']['$t'] : "";
+      const p5 = entry['gsx$palabraprohibida5'] ? entry['gsx$palabraprohibida5']['$t'] : "";
+      const prohibidas = [p1,p2,p3,p4,p5].filter(w => w).join(", ");
+      return { word: personaje, forbidden: prohibidas };
+    }).filter(c => c.word);
+    cards = shuffle(cards);
+    showCard();
+  } catch (error) {
+    wordEl.textContent = "Error cargando cartas.";
+    console.error(error);
+  }
+}
+
+loadCards();
+</script>
+
+</body>
+</html>
